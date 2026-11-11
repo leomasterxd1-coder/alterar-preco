@@ -1,4 +1,4 @@
-name: Build Alterar Preco APK
+name: Build Alterar Preco Flutter APK
 
 on:
   push:
@@ -17,18 +17,22 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Build release APK
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.5'
+          channel: stable
+      - name: Build APK
         run: |
-          chmod +x gradlew
-          ./gradlew :app:assembleRelease --no-daemon
+          flutter pub get
+          flutter build apk --release --target-platform android-arm64
       - name: Rename APK
         run: |
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            APK_NAME="alterar-preco-${GITHUB_REF_NAME}.apk"
+            APK_NAME="alterar_preco_${GITHUB_REF_NAME}.apk"
           else
-            APK_NAME="alterar-preco-dev.apk"
+            APK_NAME="alterar_preco_dev.apk"
           fi
-          cp app/build/outputs/apk/release/app-release.apk "$APK_NAME"
+          cp build/app/outputs/flutter-apk/app-release.apk "$APK_NAME"
           echo "APK_NAME=$APK_NAME" >> "$GITHUB_ENV"
           ls -lh "$APK_NAME"
       - uses: actions/upload-artifact@v4
@@ -42,7 +46,7 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: Alterar Preço ${{ github.ref_name }}
           body: |
-            APK do app Alterar Preço (loja 291).
+            APK Flutter do app Alterar Preço (loja 291).
           files: ${{ env.APK_NAME }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

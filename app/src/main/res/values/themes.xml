@@ -1,9 +1,0 @@
-<resources>
-    <style name="Theme.AlterarPreco" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:statusBarColor">#A61B1B</item>
-        <item name="android:windowBackground">#F2F2F2</item>
-        <item name="android:textColorPrimary">#1A1A1A</item>
-        <item name="android:navigationBarColor">#FFFFFF</item>
-        <item name="android:windowLightNavigationBar">true</item>
-    </style>
-</resources>
