@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -30,6 +31,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -51,11 +53,15 @@ import br.com.americanas.alterarpreco.network.HydraClient
 import br.com.americanas.alterarpreco.ui.AppColors
 import br.com.americanas.alterarpreco.ui.CheckBoxCyan
 import br.com.americanas.alterarpreco.ui.UnderlineField
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
 fun PriceListScreen(
     client: HydraClient,
+    eanInicial: String? = null,
+    onEanConsumido: () -> Unit = {},
+    onScanner: () -> Unit = {},
     onVoltarLogin: () -> Unit,
     onSelecionados: (List<Produto>) -> Unit,
 ) {
@@ -63,7 +69,8 @@ fun PriceListScreen(
     var carregando by remember { mutableStateOf(true) }
     var preparando by remember { mutableStateOf(false) }
     var erro by remember { mutableStateOf<String?>(null) }
-    var busca by remember { mutableStateOf("") }
+    var busca by remember { mutableStateOf(eanInicial.orEmpty()) }
+    var buscandoServidor by remember { mutableStateOf(false) }
     var departamento by remember { mutableStateOf<String?>(null) }
     var menuDepto by remember { mutableStateOf(false) }
     var selecionados by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -74,21 +81,56 @@ fun PriceListScreen(
         erro = null
         scope.launch {
             client.listarProdutos()
-                .onSuccess { produtos = it; selecionados = emptySet() }
+                .onSuccess { produtos = (it + produtos).distinctBy { p -> p.id }; selecionados = emptySet() }
                 .onFailure { erro = it.message ?: "Falha ao carregar preços." }
             carregando = false
         }
     }
 
-    LaunchedEffect(Unit) { carregar() }
+    fun buscarNoServidor(ean: String) {
+        val digitos = ean.filter(Char::isDigit)
+        if (digitos.length < 8 || buscandoServidor) return
+        buscandoServidor = true
+        scope.launch {
+            client.buscarPorEan(digitos)
+                .onSuccess { encontrados ->
+                    if (encontrados.isNotEmpty()) {
+                        produtos = (produtos + encontrados).distinctBy { it.id }
+                    }
+                }
+            buscandoServidor = false
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        carregar()
+        if (!eanInicial.isNullOrBlank()) {
+            busca = eanInicial
+            buscarNoServidor(eanInicial)
+            onEanConsumido()
+        }
+    }
+
+    LaunchedEffect(busca) {
+        val q = busca.trim()
+        if (q.length >= 8 && q.all(Char::isDigit)) {
+            delay(700)
+            val jaTemLocal = produtos.any { p -> p.eans.any { it.filter(Char::isDigit).contains(q) } }
+            if (!jaTemLocal) buscarNoServidor(q)
+        }
+    }
 
     val filtrados = remember(produtos, busca, departamento) {
         val q = busca.trim().lowercase()
+        val qDigitos = q.filter(Char::isDigit)
         produtos.filter { p ->
             val casaBusca = q.isBlank() ||
                 p.descricao.lowercase().contains(q) ||
                 p.codigoSap.lowercase().contains(q) ||
-                p.eans.any { it.lowercase().contains(q) }
+                p.eans.any { ean ->
+                    ean.lowercase().contains(q) ||
+                        (qDigitos.length >= 8 && ean.filter(Char::isDigit).contains(qDigitos))
+                }
             val casaDepto = departamento == null || p.departamento == departamento
             casaBusca && casaDepto
         }
@@ -114,7 +156,7 @@ fun PriceListScreen(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
-            Row(Modifier.weight(1.08f), verticalAlignment = Alignment.Bottom) {
+            Row(Modifier.weight(1.3f), verticalAlignment = Alignment.Bottom) {
                 UnderlineField(
                     value = busca,
                     onValueChange = { busca = it },
@@ -122,12 +164,22 @@ fun PriceListScreen(
                     modifier = Modifier.weight(1f),
                     textSize = 15,
                 )
-                Icon(
-                    Icons.Filled.Search,
-                    contentDescription = "Buscar",
-                    tint = Color(0xFFBDBDBD),
-                    modifier = Modifier.padding(start = 8.dp, bottom = 12.dp).size(26.dp),
-                )
+                IconButton(onClick = { buscarNoServidor(busca) }, modifier = Modifier.padding(bottom = 4.dp)) {
+                    Icon(
+                        Icons.Filled.Search,
+                        contentDescription = "Buscar",
+                        tint = Color(0xFFBDBDBD),
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+                IconButton(onClick = onScanner, modifier = Modifier.padding(bottom = 4.dp)) {
+                    Icon(
+                        Icons.Filled.QrCodeScanner,
+                        contentDescription = "Escanear código",
+                        tint = AppColors.Cyan,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
             }
             Spacer(Modifier.width(18.dp))
             Column(Modifier.weight(1f)) {

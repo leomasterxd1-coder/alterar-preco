@@ -70,6 +70,35 @@ class HydraClient {
         }
     }
 
+    suspend fun buscarPorEan(ean: String): Result<List<Produto>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val digitos = ean.filter(Char::isDigit)
+            if (digitos.length < 8) return@runCatching emptyList()
+            val parametros = listOf("ean", "search", "codigoBarras", "q", "find")
+            var ultimoErro: Throwable? = null
+            for (parametro in parametros) {
+                try {
+                    val url = "$base/price/index?selectedStore=291&$parametro=" +
+                        java.net.URLEncoder.encode(digitos, "UTF-8")
+                    val request = Request.Builder()
+                        .url(url)
+                        .get()
+                        .header("Referer", "$base/price/index?selectedStore=291")
+                        .build()
+                    val encontrados = parseProdutos(executeText(request))
+                    if (encontrados.any { produto ->
+                            produto.eans.any { it.filter(Char::isDigit).contains(digitos) }
+                        }
+                    ) return@runCatching encontrados
+                } catch (e: Exception) {
+                    ultimoErro = e
+                }
+            }
+            if (ultimoErro != null) throw ultimoErro!!
+            emptyList()
+        }
+    }
+
     suspend fun prepararEdicao(ids: List<String>): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             val form = FormBody.Builder()

@@ -13,11 +13,13 @@ import br.com.americanas.alterarpreco.network.HydraClient
 import br.com.americanas.alterarpreco.ui.screens.EditPriceScreen
 import br.com.americanas.alterarpreco.ui.screens.LoginScreen
 import br.com.americanas.alterarpreco.ui.screens.PriceListScreen
+import br.com.americanas.alterarpreco.ui.screens.ScannerScreen
 import br.com.americanas.alterarpreco.ui.screens.SelectedItemsScreen
 
 private sealed interface Tela {
     data object Login : Tela
     data object Lista : Tela
+    data object Scanner : Tela
     data class Selecionados(val itens: List<Produto>) : Tela
     data class Edicao(val itens: List<Produto>) : Tela
 }
@@ -26,6 +28,7 @@ private sealed interface Tela {
 fun App() {
     val client = remember { HydraClient() }
     var tela by remember { mutableStateOf<Tela>(Tela.Login) }
+    var eanPendente by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     BackHandler(enabled = tela != Tela.Login) {
@@ -44,11 +47,22 @@ fun App() {
 
         Tela.Lista -> PriceListScreen(
             client = client,
+            eanInicial = eanPendente,
+            onEanConsumido = { eanPendente = null },
+            onScanner = { tela = Tela.Scanner },
             onVoltarLogin = {
                 scope.launch { client.logout() }
                 tela = Tela.Login
             },
             onSelecionados = { tela = Tela.Selecionados(it) },
+        )
+
+        Tela.Scanner -> ScannerScreen(
+            onVoltar = { tela = Tela.Lista },
+            onResult = { ean ->
+                eanPendente = ean
+                tela = Tela.Lista
+            },
         )
 
         is Tela.Selecionados -> SelectedItemsScreen(
