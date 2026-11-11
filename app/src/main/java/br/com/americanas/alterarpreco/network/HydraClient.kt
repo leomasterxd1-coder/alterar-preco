@@ -2,6 +2,9 @@ package br.com.americanas.alterarpreco.network
 
 import br.com.americanas.alterarpreco.Produto
 import com.google.gson.Gson
+import com.google.gson.JsonArray
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Cookie
@@ -70,55 +73,103 @@ class HydraClient {
         }
     }
 
-    suspend fun buscarPorEan(ean: String): Result<List<Produto>> = withContext(Dispatchers.IO) {
+    suspend fun buscar(termo: String): Result<List<Produto>> = withContext(Dispatchers.IO) {
         runCatching {
-            val digitos = ean.filter(Char::isDigit)
-            if (digitos.length < 8) return@runCatching emptyList()
-            val parametros = listOf("ean", "search", "codigoBarras", "q", "find")
-            var ultimoErro: Throwable? = null
-            for (parametro in parametros) {
-                try {
-                    val url = "$base/price/index?selectedStore=291&$parametro=" +
-                        java.net.URLEncoder.encode(digitos, "UTF-8")
-                    val request = Request.Builder()
-                        .url(url)
-                        .get()
-                        .header("Referer", "$base/price/index?selectedStore=291")
-                        .build()
-                    val encontrados = parseProdutos(executeText(request))
-                    if (encontrados.any { produto ->
-                            produto.eans.any { it.filter(Char::isDigit).contains(digitos) }
-                        }
-                    ) return@runCatching encontrados
-                } catch (e: Exception) {
-                    ultimoErro = e
-                }
-            }
-            val camposPost = listOf("ean", "search", "codigoBarras", "q", "find", "codigo", "produto", "descricao")
-            for (campo in camposPost) {
-                try {
-                    val form = FormBody.Builder()
-                        .add("selectedStore", "291")
-                        .add(campo, digitos)
-                        .build()
-                    val request = Request.Builder()
-                        .url("$base/price/index")
-                        .post(form)
-                        .header("Origin", base)
-                        .header("Referer", "$base/price/index?selectedStore=291")
-                        .build()
-                    val encontrados = parseProdutos(executeText(request))
-                    if (encontrados.any { produto ->
-                            produto.eans.any { it.filter(Char::isDigit).contains(digitos) }
-                        }
-                    ) return@runCatching encontrados
-                } catch (e: Exception) {
-                    ultimoErro = e
-                }
-            }
-            if (ultimoErro != null) throw ultimoErro!!
-            emptyList()
+            val term = termo.trim()
+            if (term.length < 2) return@runCatching emptyList()
+            val url = "$base/price/search?term=" +
+                java.net.URLEncoder.encode(term, "UTF-8") +
+                "&excludedIds=%5B%5D&department=null&selectedStore=291"
+            val request = Request.Builder()
+                .url(url)
+                .get()
+                .header("Accept", "application/json, text/javascript, */*; q=0.01")
+                .header("X-Requested-With", "XMLHttpRequest")
+                .header("Referer", "$base/price/index?selectedStore=291")
+                .build()
+            parseBusca(executeText(request))
         }
+    }
+
+    private fun parseBusca(body: String): List<Produto> {
+        val texto = body.trim()
+        val raiz = runCatching { JsonParser.parseString(texto) }.getOrNull()
+        val array: JsonArray? = when {
+            raiz == null -> null
+            raiz.isJsonArray -> raiz.asJsonArray
+            raiz.isJsonObject -> listOf("items", "data", "products", "results", "content")
+                .firstNotNullOfOrNull { chave ->
+                    raiz.asJsonObject.get(chave)?.takeIf { it.isJsonArray }?.asJsonArray
+                }
+            else -> null
+        }
+        if (array != null) {
+            val produtos = array.mapNotNull { elemento ->
+                if (!elemento.isJsonObject) null else parseJsonProduto(elemento.asJsonObject)
+            }
+            if (produtos.isNotEmpty()) return produtos
+        }
+        return parseProdutos(body)
+    }
+
+    private fun parseJsonProduto(obj: JsonObject): Produto? {
+        val id = obj.texto("_id", "id", "produtoId", "codigo")
+        if (id.isBlank()) return null
+        val descricao = obj.texto("descricao", "nome", "description", "produto")
+        if (descricao.isBlank()) return null
+        val sap = obj.texto("codigoSap", "sap", "codigo")
+        val eans = obj.listaDeEans()
+        val departamento = obj.texto("departamento", "department", "descricaoDepartamento")
+        val precoTexto = obj.texto("preco", "price", "valor", "precoVenda")
+        val limpoPreco = precoTexto.replace("R$", "").trim()
+        val preco = if (limpoPreco.contains(',')) {
+            limpoPreco.replace(".", "").replace(',', '.').toDoubleOrNull()
+        } else {
+            limpoPreco.toDoubleOrNull()
+        } ?: 0.0
+        return Produto(
+            id = id,
+            descricao = descricao,
+            codigoSap = sap,
+            eans = eans,
+            departamento = departamento,
+            precoAtual = preco,
+            precoAtualTexto = if (precoTexto.isBlank()) "" else "R$ %.2f".format(preco).replace('.', ','),
+        )
+    }
+
+    private fun JsonObject.texto(vararg chaves: String): String {
+        for (chave in chaves) {
+            val valor = get(chave) ?: continue
+            if (valor.isJsonNull) continue
+            val texto = runCatching { valor.asString }.getOrNull()
+            if (!texto.isNullOrBlank()) return texto
+        }
+        return ""
+    }
+
+    private fun JsonObject.listaDeEans(): List<String> {
+        for (chave in listOf("eans", "ean", "codigoBarras", "barcode", "codigosBarras")) {
+            val valor = get(chave) ?: continue
+            if (valor.isJsonNull) continue
+            val itens = when {
+                valor.isJsonArray -> valor.asJsonArray.mapNotNull { el ->
+                    when {
+                        el.isJsonPrimitive -> el.asString
+                        el.isJsonObject -> el.asJsonObject.texto("ean", "codigo", "codigoBarras", "value").ifBlank { null }
+                        else -> null
+                    }
+                }
+                valor.isJsonPrimitive -> listOf(valor.asString)
+                else -> emptyList()
+            }
+            val eans = itens
+                .flatMap { it.split(Regex("[,;\\s]+")) }
+                .map { it.filter(Char::isDigit) }
+                .filter { it.isNotBlank() }
+            if (eans.isNotEmpty()) return eans
+        }
+        return emptyList()
     }
 
     suspend fun prepararEdicao(ids: List<String>): Result<Unit> = withContext(Dispatchers.IO) {

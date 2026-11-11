@@ -88,11 +88,11 @@ fun PriceListScreen(
     }
 
     fun buscarNoServidor(ean: String) {
-        val digitos = ean.filter(Char::isDigit)
-        if (digitos.length < 8 || buscandoServidor) return
+        val termo = ean.trim()
+        if (termo.length < 2 || buscandoServidor) return
         buscandoServidor = true
         scope.launch {
-            client.buscarPorEan(digitos)
+            client.buscar(termo)
                 .onSuccess { encontrados ->
                     if (encontrados.isNotEmpty()) {
                         produtos = (produtos + encontrados).distinctBy { it.id }
@@ -113,10 +113,9 @@ fun PriceListScreen(
 
     LaunchedEffect(busca) {
         val q = busca.trim()
-        if (q.length >= 8 && q.all(Char::isDigit)) {
-            delay(700)
-            val jaTemLocal = produtos.any { p -> p.eans.any { it.filter(Char::isDigit).contains(q) } }
-            if (!jaTemLocal) buscarNoServidor(q)
+        if (q.length >= 3) {
+            delay(450)
+            buscarNoServidor(q)
         }
     }
 
