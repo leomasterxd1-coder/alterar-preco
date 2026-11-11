@@ -94,6 +94,28 @@ class HydraClient {
                     ultimoErro = e
                 }
             }
+            val camposPost = listOf("ean", "search", "codigoBarras", "q", "find", "codigo", "produto", "descricao")
+            for (campo in camposPost) {
+                try {
+                    val form = FormBody.Builder()
+                        .add("selectedStore", "291")
+                        .add(campo, digitos)
+                        .build()
+                    val request = Request.Builder()
+                        .url("$base/price/index")
+                        .post(form)
+                        .header("Origin", base)
+                        .header("Referer", "$base/price/index?selectedStore=291")
+                        .build()
+                    val encontrados = parseProdutos(executeText(request))
+                    if (encontrados.any { produto ->
+                            produto.eans.any { it.filter(Char::isDigit).contains(digitos) }
+                        }
+                    ) return@runCatching encontrados
+                } catch (e: Exception) {
+                    ultimoErro = e
+                }
+            }
             if (ultimoErro != null) throw ultimoErro!!
             emptyList()
         }
