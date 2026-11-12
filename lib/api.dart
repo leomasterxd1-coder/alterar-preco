@@ -107,6 +107,7 @@ class HydraApi {
             'price': item.preco.replaceAll(',', '.'),
             'reason': item.justificativa.trim(),
             'clienteAOffer': item.clienteA,
+            'exclusiveClientA': item.clienteA,
           },
         )
         .toList();
