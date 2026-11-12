@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../api.dart';
 import '../models.dart';
@@ -25,6 +26,7 @@ class _PriceListScreenState extends State<PriceListScreen> {
   String? _erro;
   String? _departamento;
   Timer? _debounce;
+  bool _saidaDialogAberta = false;
 
   @override
   void initState() {
@@ -156,12 +158,46 @@ class _PriceListScreenState extends State<PriceListScreen> {
     }
   }
 
+  Future<void> _confirmarSaida() async {
+    if (_saidaDialogAberta) return;
+    _saidaDialogAberta = true;
+    final sair = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sair do aplicativo?'),
+        content: const Text('Deseja realmente fechar o Alterar Preço?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('CANCELAR'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(
+              'SAIR',
+              style: TextStyle(color: AppColors.red, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+    _saidaDialogAberta = false;
+    if (sair == true) {
+      await SystemNavigator.pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final filtrados = _filtrados;
     final todosMarcados = filtrados.isNotEmpty && filtrados.every((p) => _selecionados.contains(p.id));
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _confirmarSaida();
+      },
+      child: Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
@@ -345,6 +381,7 @@ class _PriceListScreenState extends State<PriceListScreen> {
             ],
           ],
         ),
+      ),
       ),
     );
   }

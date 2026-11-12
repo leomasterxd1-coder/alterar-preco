@@ -156,18 +156,7 @@ class HydraApi {
       }
     }
 
-    List<dynamic>? lista;
-    if (decoded is List) {
-      lista = decoded;
-    } else if (decoded is Map<String, dynamic>) {
-      for (final chave in ['items', 'data', 'products', 'results', 'content']) {
-        final valor = decoded[chave];
-        if (valor is List) {
-          lista = valor;
-          break;
-        }
-      }
-    }
+    final lista = _localizarLista(decoded);
 
     if (lista != null) {
       final produtos = lista
@@ -182,14 +171,26 @@ class HydraApi {
     return [];
   }
 
+  List<dynamic>? _localizarLista(dynamic valor, [int profundidade = 0]) {
+    if (valor is List) return valor;
+    if (valor is Map && profundidade < 3) {
+      for (final chave in ['items', 'data', 'products', 'results', 'content', 'result']) {
+        final encontrado = _localizarLista(valor[chave], profundidade + 1);
+        if (encontrado != null) return encontrado;
+      }
+    }
+    return null;
+  }
+
   Produto? _produtoDoMapa(Map<String, dynamic> map) {
-    final id = _texto(map, ['_id', 'id', 'produtoId', 'codigo']);
+    final id = _texto(map, ['_id', 'id', 'produtoId', 'productId', 'codigo', 'value']);
     if (id.isEmpty) return null;
-    final descricao = _texto(map, ['descricao', 'nome', 'description', 'produto']);
+    var descricao = _texto(map, ['descricao', 'nome', 'description', 'produto', 'text', 'label', 'title', 'descricaoProduto', 'nomeProduto']);
+    descricao = descricao.replaceAll(RegExp(r'<[^>]+>'), '').trim();
     if (descricao.isEmpty) return null;
 
     final eans = <String>[];
-    for (final chave in ['eans', 'ean', 'codigoBarras', 'barcode', 'codigosBarras']) {
+    for (final chave in ['eans', 'ean', 'codigoBarras', 'codigoBarra', 'barcode', 'codigosBarras', 'codigosBarra']) {
       final valor = map[chave];
       if (valor == null) continue;
       if (valor is List) {
@@ -213,8 +214,13 @@ class HydraApi {
         .where((e) => e.isNotEmpty)
         .toList();
 
-    final precoBruto = map['preco'] ?? map['price'] ?? map['valor'] ?? map['precoVenda'];
+    final precoBruto = map['preco'] ?? map['price'] ?? map['valor'] ?? map['precoVenda'] ?? map['precoAtual'] ?? map['valorAtual'];
     final preco = _preco(precoBruto);
+    if (eansLimpos.isEmpty) {
+      eansLimpos.addAll(
+        RegExp(r'\d{8,14}').allMatches(descricao).map((m) => m.group(0)!).toList(),
+      );
+    }
     return Produto(
       id: id,
       descricao: descricao,
@@ -247,12 +253,22 @@ class HydraApi {
       final descricao = cells[inicio].text.trim();
       if (descricao.isEmpty) continue;
       final codigoSap = cells[inicio + 1].text.trim();
-      final eans = cells[inicio + 2]
+      final tokensEan = cells[inicio + 2]
           .text
           .trim()
           .split(RegExp(r'\s+'))
-          .where((e) => e.isNotEmpty)
+          .map((e) => e.replaceAll(RegExp(r'[^0-9]'), ''))
+          .where((e) => e.length >= 5)
           .toList();
+      final eans = <String>[];
+      for (var i = 0; i < tokensEan.length; i++) {
+        var ean = tokensEan[i];
+        if (ean.length == 8 && i + 1 < tokensEan.length && tokensEan[i + 1].length == 5) {
+          ean += tokensEan[i + 1];
+          i++;
+        }
+        eans.add(ean);
+      }
       final departamento = cells[inicio + 3].text.trim();
       final precoTexto = cells[inicio + 4].text.trim();
       final preco = _preco(precoTexto);
@@ -269,6 +285,38 @@ class HydraApi {
         ),
       );
     }
+    for (final row in doc.querySelectorAll('div.Row')) {
+      final checkbox = row.querySelector('input[type=checkbox]');
+      final id = (checkbox?.attributes['value'] ??
+              checkbox?.attributes['data-id'] ??
+              '')
+          .trim();
+      if (id.length <= 5) continue;
+
+      final descricao = row.querySelector('div[id^="product-description-"]')?.text.trim() ?? '';
+      if (descricao.isEmpty) continue;
+      final codigoSap = row.querySelector('div[id^="product-id-"]')?.text.trim() ?? '';
+      final eans = row
+          .querySelectorAll('div[id^="product-ean-"] li')
+          .map((li) => li.text.replaceAll(RegExp(r'[^0-9]'), ''))
+          .where((ean) => ean.isNotEmpty)
+          .toList();
+      final departamento = row.querySelector('div[id^="product-department-"]')?.text.trim() ?? '';
+      final precoTexto = row.querySelector('div[id^="product-price-"]')?.text.trim() ?? '';
+      final preco = _preco(precoTexto);
+      produtos.add(
+        Produto(
+          id: id,
+          descricao: descricao,
+          codigoSap: codigoSap,
+          eans: eans,
+          departamento: departamento,
+          precoAtual: preco,
+          precoAtualTexto: precoTexto.isNotEmpty ? precoTexto : _moeda(preco),
+        ),
+      );
+    }
+
     final vistos = <String>{};
     return produtos.where((p) => vistos.add(p.id)).toList();
   }

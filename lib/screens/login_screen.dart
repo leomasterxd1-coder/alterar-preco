@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../api.dart';
+import '../credentials_storage.dart';
 import '../theme.dart';
 import 'price_list_screen.dart';
 
@@ -17,7 +18,24 @@ class _LoginScreenState extends State<LoginScreen> {
   final _usuario = TextEditingController();
   final _senha = TextEditingController();
   bool _carregando = false;
+  bool _senhaVisivel = false;
+  bool _salvarCredenciais = true;
   String? _erro;
+
+  @override
+  void initState() {
+    super.initState();
+    _carregarCredenciais();
+  }
+
+  Future<void> _carregarCredenciais() async {
+    final salvas = await CredenciaisStorage.carregar();
+    if (!mounted || salvas == null) return;
+    setState(() {
+      _usuario.text = salvas.usuario;
+      _senha.text = salvas.senha;
+    });
+  }
 
   Future<void> _entrar() async {
     if (_carregando) return;
@@ -28,6 +46,11 @@ class _LoginScreenState extends State<LoginScreen> {
     });
     try {
       await HydraApi.instance.login(_usuario.text, _senha.text);
+      if (_salvarCredenciais) {
+        await CredenciaisStorage.salvar(_usuario.text.trim(), _senha.text);
+      } else {
+        await CredenciaisStorage.limpar();
+      }
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const PriceListScreen()),
@@ -140,11 +163,34 @@ class _LoginScreenState extends State<LoginScreen> {
           _UnderlineField(
             controller: _senha,
             hint: 'Digite sua Senha',
-            obscureText: true,
+            obscureText: !_senhaVisivel,
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            suffixIcon: IconButton(
+              onPressed: () => setState(() => _senhaVisivel = !_senhaVisivel),
+              icon: Icon(
+                _senhaVisivel ? Icons.visibility_off : Icons.visibility,
+                color: AppColors.textMuted,
+                size: 22,
+              ),
+            ),
           ),
-          const SizedBox(height: 52),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Checkbox(
+                value: _salvarCredenciais,
+                onChanged: (valor) => setState(() => _salvarCredenciais = valor ?? false),
+                activeColor: AppColors.red,
+                visualDensity: VisualDensity.compact,
+              ),
+              const Text(
+                'Salvar credenciais',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+              ),
+            ],
+          ),
+          const SizedBox(height: 26),
           SizedBox(
             width: double.infinity,
             height: 48,
@@ -195,6 +241,7 @@ class _UnderlineField extends StatelessWidget {
   final bool obscureText;
   final TextInputType? keyboardType;
   final List<TextInputFormatter>? inputFormatters;
+  final Widget? suffixIcon;
 
   const _UnderlineField({
     required this.controller,
@@ -202,6 +249,7 @@ class _UnderlineField extends StatelessWidget {
     this.obscureText = false,
     this.keyboardType,
     this.inputFormatters,
+    this.suffixIcon,
   });
 
   @override
@@ -222,6 +270,7 @@ class _UnderlineField extends StatelessWidget {
           borderSide: BorderSide(color: AppColors.red),
         ),
         contentPadding: const EdgeInsets.symmetric(vertical: 10),
+        suffixIcon: suffixIcon,
       ),
     );
   }
