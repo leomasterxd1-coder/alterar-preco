@@ -398,11 +398,11 @@ class _PriceListScreenState extends State<PriceListScreen> {
               child: _checkbox(todosMarcados, onChanged: (_) => onToggle()),
             ),
           ),
-          const Expanded(flex: 21, child: _HeaderCell('Descrição')),
-          const Expanded(flex: 12, child: _HeaderCell('Código SAP')),
-          const Expanded(flex: 12, child: _HeaderCell('EANs')),
-          const Expanded(flex: 18, child: _HeaderCell('Departamento')),
-          const Expanded(flex: 9, child: _HeaderCell('Preço')),
+          const Expanded(flex: 20, child: _HeaderCell('Descrição')),
+          const Expanded(flex: 11, child: _HeaderCell('Código')),
+          const Expanded(flex: 11, child: _HeaderCell('EANs')),
+          const Expanded(flex: 14, child: _HeaderCell('Departamento')),
+          const Expanded(flex: 14, child: _HeaderCell('Preço')),
         ],
       ),
     );
@@ -440,35 +440,35 @@ class _PriceListScreenState extends State<PriceListScreen> {
               ),
             ),
             Expanded(
-              flex: 21,
+              flex: 20,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: Text(
                   produto.descricao,
                   style: const TextStyle(
                     color: AppColors.textMuted,
-                    fontSize: 11,
-                    height: 1.35,
+                    fontSize: 10,
+                    height: 1.3,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
             ),
             Expanded(
-              flex: 12,
+              flex: 11,
               child: _corpo(produto.codigoSap),
             ),
             Expanded(
-              flex: 12,
+              flex: 11,
               child: _corpo(produto.eansTexto),
             ),
             Expanded(
-              flex: 18,
-              child: _corpo(produto.departamento),
+              flex: 14,
+              child: _corpo(produto.departamento, fontSize: 9, maxLines: 4),
             ),
             Expanded(
-              flex: 9,
-              child: _corpo(produto.precoFormatado),
+              flex: 14,
+              child: _corpoPreco(produto.precoFormatado),
             ),
           ],
         ),
@@ -476,12 +476,34 @@ class _PriceListScreenState extends State<PriceListScreen> {
     );
   }
 
-  Widget _corpo(String texto) {
+  Widget _corpo(String texto, {double fontSize = 10, int? maxLines}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Text(
         texto,
-        style: const TextStyle(color: AppColors.textMuted, fontSize: 11, height: 1.35),
+        maxLines: maxLines,
+        overflow: maxLines == null ? TextOverflow.clip : TextOverflow.ellipsis,
+        style: TextStyle(color: AppColors.textMuted, fontSize: fontSize, height: 1.3),
+      ),
+    );
+  }
+
+  Widget _corpoPreco(String texto) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Text(
+          texto,
+          maxLines: 1,
+          softWrap: false,
+          style: const TextStyle(
+            color: AppColors.textMuted,
+            fontSize: 11,
+            height: 1.3,
+          ),
+        ),
       ),
     );
   }
