@@ -149,6 +149,20 @@ class _PriceListScreenState extends State<PriceListScreen> {
       );
       if (salvou == true && mounted) {
         await _carregar();
+        if (mounted) {
+          final quantidade = escolhidos.length;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: AppColors.cyan,
+              content: Text(
+                quantidade == 1
+                    ? '1 item alterado com sucesso.'
+                    : '$quantidade itens alterados com sucesso.',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
+          );
+        }
       }
     } catch (e) {
       if (!mounted) return;
