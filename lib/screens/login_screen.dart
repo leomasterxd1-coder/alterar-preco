@@ -141,6 +141,8 @@ class _LoginScreenState extends State<LoginScreen> {
             controller: _senha,
             hint: 'Digite sua Senha',
             obscureText: true,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           ),
           const SizedBox(height: 52),
           SizedBox(
