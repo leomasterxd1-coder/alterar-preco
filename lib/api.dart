@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:html/parser.dart' as html_parser;
 
+import 'currency_input_formatter.dart';
 import 'models.dart';
 
 class ApiException implements Exception {
@@ -104,7 +105,7 @@ class HydraApi {
         .map(
           (item) => {
             '_id': item.id,
-            'price': item.preco.replaceAll(',', '.'),
+            'price': precoParaApi(item.preco),
             'reason': item.justificativa.trim(),
             'clienteAOffer': item.clienteA,
             'exclusiveClientA': item.clienteA,

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../api.dart';
+import '../currency_input_formatter.dart';
 import '../models.dart';
 import '../theme.dart';
 
@@ -31,6 +31,13 @@ class _EdicaoItem {
 }
 
 class _EditPriceScreenState extends State<EditPriceScreen> {
+  static const _vermelho = Color(0xFFA92327);
+  static const _vermelhoBotao = Color(0xFFB51F24);
+  static const _cinza = Color(0xFF888888);
+  static const _texto = Color(0xFF30383E);
+  static const _borda = Color(0xFFE0E4E6);
+  static const _fundo = Color(0xFFF4F5F5);
+
   late final List<_EdicaoItem> _itens;
   bool _salvando = false;
   String? _erro;
@@ -49,16 +56,33 @@ class _EditPriceScreenState extends State<EditPriceScreen> {
     super.dispose();
   }
 
+  void _remover(int index) {
+    setState(() {
+      final item = _itens.removeAt(index);
+      item.dispose();
+    });
+  }
+
   Future<void> _salvar() async {
+    FocusScope.of(context).unfocus();
     if (_salvando) return;
     if (_itens.isEmpty) {
       setState(() => _erro = 'Nenhum item selecionado.');
       return;
     }
-    if (_itens.any((i) => i.preco.text.trim().isEmpty || i.justificativa.text.trim().isEmpty)) {
-      setState(() => _erro = 'Preencha o preço provisório e a justificativa de todos os itens.');
+    final invalido = _itens.any((item) {
+      final preco = precoParaApi(item.preco.text);
+      final numero = double.tryParse(preco);
+      return item.preco.text.trim().isEmpty ||
+          numero == null ||
+          numero <= 0 ||
+          item.justificativa.text.trim().isEmpty;
+    });
+    if (invalido) {
+      setState(() => _erro = 'Preencha o preço e a justificativa de todos os itens.');
       return;
     }
+
     setState(() {
       _salvando = true;
       _erro = null;
@@ -67,11 +91,11 @@ class _EditPriceScreenState extends State<EditPriceScreen> {
       await HydraApi.instance.salvarPrecos(
         _itens
             .map(
-              (i) => AlteracaoPreco(
-                id: i.produto.id,
-                preco: i.preco.text.trim(),
-                justificativa: i.justificativa.text.trim(),
-                clienteA: i.clienteA,
+              (item) => AlteracaoPreco(
+                id: item.produto.id,
+                preco: item.preco.text.trim(),
+                justificativa: item.justificativa.text.trim(),
+                clienteA: item.clienteA,
               ),
             )
             .toList(),
@@ -89,232 +113,345 @@ class _EditPriceScreenState extends State<EditPriceScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: _fundo,
       body: SafeArea(
-        child: Column(
+        bottom: false,
+        child: ListView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 25),
           children: [
-            Container(
-              width: double.infinity,
-              color: Colors.white,
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            const Text(
+              'Edição de Preços',
+              style: TextStyle(
+                color: _vermelho,
+                fontSize: 27,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 5),
+            const Text(
+              'LOJA 291',
+              style: TextStyle(
+                color: _cinza,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: 22),
+            _avisoValidade(),
+            const SizedBox(height: 20),
+            ..._itens.asMap().entries.map(
+                  (entry) => _cardItem(entry.key, entry.value),
+                ),
+            if (_erro != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  _erro!,
+                  style: const TextStyle(color: _vermelho, fontSize: 13),
+                ),
+              ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: _barraInferior(),
+    );
+  }
+
+  Widget _avisoValidade() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFAF7ED),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE9DDB8)),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, color: Color(0xFFA68B43), size: 23),
+          SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Validade dos preços',
+                  style: TextStyle(
+                    color: Color(0xFF806A32),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+                SizedBox(height: 5),
+                Text(
+                  'Os preços alterados permanecerão válidos só até 23:59h da Data de Início escolhida.',
+                  style: TextStyle(
+                    color: Color(0xFF9A854B),
+                    fontSize: 13,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _cardItem(int index, _EdicaoItem item) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _borda),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.035),
+            blurRadius: 9,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  item.produto.descricao,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: _texto,
+                    fontSize: 19,
+                    fontWeight: FontWeight.w700,
+                    height: 1.3,
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Excluir produto',
+                onPressed: () => _remover(index),
+                icon: const Icon(Icons.delete_outline, color: AppColors.cyan, size: 28),
+              ),
+            ],
+          ),
+          const Divider(height: 25, color: _borda),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: _colunaInfo('Código', item.produto.codigoSap)),
+              const SizedBox(width: 8),
+              Expanded(child: _colunaInfo('EAN', item.produto.eans.join(', '))),
+              const SizedBox(width: 8),
+              Expanded(child: _colunaInfo('Departamento', item.produto.departamento)),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: _fundo,
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Preço atual', style: TextStyle(color: _cinza, fontSize: 13)),
+                const SizedBox(height: 5),
+                Text(
+                  item.produto.precoFormatado,
+                  style: const TextStyle(
+                    color: _texto,
+                    fontSize: 27,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'Dados para Alteração de Preço',
+            style: TextStyle(color: _vermelho, fontSize: 21, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 1,
+                child: _campoPreco(item),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                flex: 1,
+                child: _campoJustificativa(item),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () => setState(() => item.clienteA = !item.clienteA),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
+              child: Row(
                 children: [
-                  Text(
-                    'Edição de Preços da Loja 291',
-                    style: TextStyle(
-                      color: AppColors.red,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
+                  Checkbox(
+                    value: item.clienteA,
+                    activeColor: AppColors.cyan,
+                    side: const BorderSide(color: AppColors.cyan, width: 2),
+                    onChanged: (valor) => setState(() => item.clienteA = valor ?? false),
+                  ),
+                  const SizedBox(width: 5),
+                  const Expanded(
+                    child: Text(
+                      'Exclusivo Cliente A',
+                      style: TextStyle(color: _cinza, fontSize: 15),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Os preços alterados permanecerão válidos só até 23:59h da Data de Início escolhida.',
-                          style: TextStyle(
-                            color: AppColors.gold,
-                            fontSize: 12,
-                            height: 1.35,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      OutlinedButton(
-                        onPressed: _salvando ? null : () => Navigator.of(context).pop(false),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.red,
-                          side: const BorderSide(color: AppColors.red),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(1)),
-                          minimumSize: const Size(0, 42),
-                        ),
-                        child: const Text('Cancelar', style: TextStyle(fontSize: 13)),
-                      ),
-                      const SizedBox(width: 8),
-                      SizedBox(
-                        width: 96,
-                        height: 42,
-                        child: ElevatedButton(
-                          onPressed: _salvando ? null : _salvar,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.red,
-                            disabledBackgroundColor: AppColors.red.withValues(alpha: 0.6),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(1)),
-                            elevation: 0,
-                          ),
-                          child: _salvando
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                                )
-                              : const Text(
-                                  'Salvar',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (_erro != null) ...[
-                    const SizedBox(height: 10),
-                    Text(_erro!, style: const TextStyle(color: AppColors.red, fontSize: 12)),
-                  ],
                 ],
               ),
             ),
-            Container(height: 6, color: const Color(0xFFD9D9D9)),
-            Expanded(
-              child: Container(
-                color: const Color(0xFFE3E3E3),
-                child: ListView.separated(
-                  padding: EdgeInsets.zero,
-                  itemCount: _itens.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 6),
-                  itemBuilder: (context, index) {
-                    final item = _itens[index];
-                    return Container(
-                      color: Colors.white,
-                      padding: const EdgeInsets.all(16),
-                      child: _cardEdicao(item, index),
-                    );
-                  },
-                ),
-              ),
-            ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _colunaInfo(String titulo, String valor) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          titulo,
+          style: const TextStyle(color: _cinza, fontSize: 12, fontWeight: FontWeight.w500),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          valor.isEmpty ? '-' : valor,
+          style: const TextStyle(color: _texto, fontSize: 12, height: 1.4),
+        ),
+      ],
+    );
+  }
+
+  Widget _campoPreco(_EdicaoItem item) {
+    return TextField(
+      controller: item.preco,
+      keyboardType: TextInputType.number,
+      inputFormatters: const [MoedaInputFormatter()],
+      style: const TextStyle(fontSize: 15, color: _texto),
+      decoration: const InputDecoration(
+        labelText: 'Preço Provisório',
+        prefixText: 'R\$ ',
+        labelStyle: TextStyle(color: _cinza),
+        enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _borda)),
+        focusedBorder: UnderlineInputBorder(
+          borderSide: BorderSide(color: _vermelho, width: 2),
         ),
       ),
     );
   }
 
-  Widget _cardEdicao(_EdicaoItem item, int index) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Text(
-                item.produto.descricao,
-                style: const TextStyle(
-                  color: AppColors.textDark,
-                  fontSize: 18,
-                  height: 1.25,
-                  fontWeight: FontWeight.bold,
+  Widget _campoJustificativa(_EdicaoItem item) {
+    return TextField(
+      controller: item.justificativa,
+      style: const TextStyle(fontSize: 15, color: _texto),
+      decoration: const InputDecoration(
+        labelText: 'Justifique a Alteração',
+        labelStyle: TextStyle(color: _cinza),
+        enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: _borda)),
+        focusedBorder: UnderlineInputBorder(
+          borderSide: BorderSide(color: _vermelho, width: 2),
+        ),
+      ),
+    );
+  }
+
+  Widget _barraInferior() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, -3),
+          ),
+        ],
+        border: const Border(top: BorderSide(color: _borda)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 13, 16, 13),
+          child: Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 52,
+                  child: OutlinedButton(
+                    onPressed: _salvando ? null : () => Navigator.of(context).pop(false),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _vermelho,
+                      side: const BorderSide(color: _vermelho, width: 1.5),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text(
+                      'Cancelar',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                  ),
                 ),
               ),
-            ),
-            IconButton(
-              onPressed: () => setState(() => _itens.removeAt(index)),
-              icon: const Icon(Icons.delete_outline, color: AppColors.cyan, size: 24),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: _info('Código', item.produto.codigoSap)),
-            const SizedBox(width: 12),
-            Expanded(child: _info('EAN', item.produto.eans.join(', '))),
-            const SizedBox(width: 12),
-            Expanded(child: _info('Departamento', item.produto.departamento)),
-          ],
-        ),
-        const SizedBox(height: 14),
-        _info('Preço Atual', item.produto.precoFormatado),
-        const SizedBox(height: 20),
-        Text(
-          'Dados para Alteração de Preço',
-          style: TextStyle(color: AppColors.red, fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 10),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Expanded(
-              flex: 8,
-              child: _campo(
-                controller: item.preco,
-                hint: 'Preço Provisório',
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]')),
-                ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: _salvando ? null : _salvar,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _vermelhoBotao,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: _vermelhoBotao.withValues(alpha: 0.5),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: _salvando
+                        ? const SizedBox(
+                            height: 22,
+                            width: 22,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          )
+                        : const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.save_outlined, size: 19),
+                              SizedBox(width: 7),
+                              Text(
+                                'Salvar',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(width: 18),
-            Expanded(
-              flex: 14,
-              child: _campo(
-                controller: item.justificativa,
-                hint: 'Justifique a Alteração',
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
-        const SizedBox(height: 18),
-        Row(
-          children: [
-            const Text('Exclusivo Cliente A', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
-            const SizedBox(width: 8),
-            Checkbox(
-              value: item.clienteA,
-              onChanged: (value) => setState(() => item.clienteA = value ?? false),
-              activeColor: Colors.white,
-              checkColor: AppColors.cyan,
-              side: const BorderSide(color: AppColors.cyan, width: 2),
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              visualDensity: VisualDensity.compact,
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-      ],
-    );
-  }
-
-  Widget _info(String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
-        const SizedBox(height: 3),
-        Text(
-          value.isEmpty ? '-' : value,
-          style: const TextStyle(color: AppColors.textMuted, fontSize: 13, height: 1.3),
-        ),
-      ],
-    );
-  }
-
-  Widget _campo({
-    required TextEditingController controller,
-    required String hint,
-    TextInputType? keyboardType,
-    List<TextInputFormatter>? inputFormatters,
-  }) {
-    return TextField(
-      controller: controller,
-      keyboardType: keyboardType,
-      inputFormatters: inputFormatters,
-      style: const TextStyle(fontSize: 14, color: AppColors.textDark),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 14),
-        enabledBorder: UnderlineInputBorder(
-          borderSide: BorderSide(color: AppColors.textMuted.withValues(alpha: 0.7)),
-        ),
-        focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: AppColors.red)),
-        contentPadding: const EdgeInsets.symmetric(vertical: 10),
       ),
     );
   }
