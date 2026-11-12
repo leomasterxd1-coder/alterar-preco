@@ -89,6 +89,7 @@ class HydraApi {
       data: {'productsToEdit': jsonEncode(ids), 'selectedStore': '291'},
       options: Options(
         contentType: Headers.formUrlEncodedContentType,
+        validateStatus: (status) => status != null && status < 400,
         headers: {
           'Origin': base,
           'Referer': '$base/price/index?selectedStore=291',
@@ -114,6 +115,7 @@ class HydraApi {
       data: {'products': jsonEncode(payload), 'selectedStore': '291'},
       options: Options(
         contentType: Headers.formUrlEncodedContentType,
+        validateStatus: (status) => status != null && status < 400,
         headers: {'Origin': base, 'Referer': '$base/price/edit'},
       ),
     );
@@ -130,7 +132,11 @@ class HydraApi {
 
   void _validarResposta(Response response) {
     final status = response.statusCode ?? 0;
-    if (status >= 400) throw ApiException('Falha na requisição ($status).');
+    final location = response.headers.value('location') ?? '';
+    if (status >= 400 ||
+        (status == 302 && location.toLowerCase().contains('/login'))) {
+      throw ApiException('Falha na requisição ($status).');
+    }
   }
 
   String _asText(dynamic data) {
