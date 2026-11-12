@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../api.dart';
 import '../theme.dart';
@@ -104,23 +105,11 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ],
       ),
-      child: Column(
-        children: [
-          Container(height: 3, color: AppColors.red),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Text(
-              'LOJAS AMERICANAS',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: AppColors.red,
-                fontSize: 28,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-          Container(height: 3, color: AppColors.red),
-        ],
+      child: SvgPicture.asset(
+        'assets/images/lojas_americanas.svg',
+        height: 58,
+        width: double.infinity,
+        fit: BoxFit.contain,
       ),
     );
   }

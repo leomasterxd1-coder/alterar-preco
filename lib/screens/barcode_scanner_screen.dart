@@ -8,7 +8,7 @@ class BarcodeScannerScreen extends StatefulWidget {
   State<BarcodeScannerScreen> createState() => _BarcodeScannerScreenState();
 }
 
-class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
+class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> with WidgetsBindingObserver {
   late final MobileScannerController _controller;
   bool _popped = false;
   double _scaleStart = 1.0;
@@ -17,6 +17,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _controller = MobileScannerController(
       detectionSpeed: DetectionSpeed.normal,
       facing: CameraFacing.back,
@@ -72,6 +73,18 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
                 );
               },
             ),
+            ValueListenableBuilder<MobileScannerArguments?>(
+              valueListenable: _controller.startArguments,
+              builder: (context, args, child) {
+                if (args != null) return const SizedBox.shrink();
+                return const ColoredBox(
+                  color: Colors.black,
+                  child: Center(
+                    child: CircularProgressIndicator(color: Colors.white),
+                  ),
+                );
+              },
+            ),
             Positioned(
               top: 0,
               left: 0,
@@ -120,7 +133,23 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
   }
 
   @override
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_popped) return;
+    switch (state) {
+      case AppLifecycleState.resumed:
+        _controller.start().catchError((_) => null);
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+        _controller.stop();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     super.dispose();
   }
