@@ -173,14 +173,18 @@ class _PriceListScreenState extends State<PriceListScreen> {
         selecionados.map((p) => p.id).toList(),
       );
       if (!mounted) return;
-      final salvou = await Navigator.of(context).push<bool>(
+      final resultado = await Navigator.of(context).push<SelectedItemsResult>(
         MaterialPageRoute(builder: (_) => SelectedItemsScreen(itens: selecionados)),
       );
-      if (salvou == false && mounted) {
-        setState(() => _selecionados.clear());
-      } else if (salvou == true && mounted) {
-        await _carregar();
-        if (mounted) {
+      if (resultado != null && mounted) {
+        setState(() {
+          _selecionados
+            ..clear()
+            ..addAll(resultado.selecionados);
+        });
+        if (resultado.salvou) {
+          await _carregar();
+          if (!mounted) return;
           final quantidade = selecionados.length;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
