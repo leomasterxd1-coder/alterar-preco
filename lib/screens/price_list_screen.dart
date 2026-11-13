@@ -176,7 +176,9 @@ class _PriceListScreenState extends State<PriceListScreen> {
       final salvou = await Navigator.of(context).push<bool>(
         MaterialPageRoute(builder: (_) => SelectedItemsScreen(itens: selecionados)),
       );
-      if (salvou == true && mounted) {
+      if (salvou == false && mounted) {
+        setState(() => _selecionados.clear());
+      } else if (salvou == true && mounted) {
         await _carregar();
         if (mounted) {
           final quantidade = selecionados.length;

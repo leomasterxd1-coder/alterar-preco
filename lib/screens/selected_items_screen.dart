@@ -21,6 +21,70 @@ class SelectedItemsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 12,
+              offset: const Offset(0, -3),
+            ),
+          ],
+          border: const Border(top: BorderSide(color: AppColors.divider)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 13, 16, 13),
+            child: Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 52,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.red,
+                        side: const BorderSide(color: AppColors.red, width: 1.5),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: const Text(
+                        'Adicionar mais',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: SizedBox(
+                    height: 52,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _editar(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.red,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      icon: const Icon(Icons.edit_outlined, size: 19),
+                      label: const Text(
+                        'Alterar preços',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
       body: SafeArea(
         child: Column(
           children: [
