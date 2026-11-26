@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../api.dart';
 import '../models.dart';
 import '../theme.dart';
 import 'edit_price_screen.dart';
@@ -8,10 +9,7 @@ class SelectedItemsResult {
   final bool salvou;
   final Set<String> selecionados;
 
-  const SelectedItemsResult({
-    required this.salvou,
-    required this.selecionados,
-  });
+  const SelectedItemsResult({required this.salvou, required this.selecionados});
 }
 
 class SelectedItemsScreen extends StatefulWidget {
@@ -24,6 +22,7 @@ class SelectedItemsScreen extends StatefulWidget {
 
 class _SelectedItemsScreenState extends State<SelectedItemsScreen> {
   late final Set<String> _selecionados;
+  bool _preparando = false;
 
   @override
   void initState() {
@@ -35,20 +34,36 @@ class _SelectedItemsScreenState extends State<SelectedItemsScreen> {
       widget.itens.isNotEmpty && _selecionados.length == widget.itens.length;
 
   Future<void> _editar() async {
-    final itens = widget.itens.where((p) => _selecionados.contains(p.id)).toList();
+    final itens = widget.itens
+        .where((p) => _selecionados.contains(p.id))
+        .toList();
     if (itens.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Selecione pelo menos um produto.')),
       );
       return;
     }
+    if (_preparando) return;
+    setState(() => _preparando = true);
+    try {
+      await HydraApi.instance.prepararEdicao(itens.map((p) => p.id).toList());
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _preparando = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao preparar a edição: ' + e.toString())),
+      );
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _preparando = false);
     final salvou = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => EditPriceScreen(itens: itens)),
     );
     if (salvou == true && mounted) {
-      Navigator.of(context).pop(
-        SelectedItemsResult(salvou: true, selecionados: _selecionados),
-      );
+      Navigator.of(
+        context,
+      ).pop(SelectedItemsResult(salvou: true, selecionados: _selecionados));
     }
   }
 
@@ -63,9 +78,9 @@ class _SelectedItemsScreenState extends State<SelectedItemsScreen> {
   }
 
   void _voltarComSelecao() {
-    Navigator.of(context).pop(
-      SelectedItemsResult(salvou: false, selecionados: _selecionados),
-    );
+    Navigator.of(
+      context,
+    ).pop(SelectedItemsResult(salvou: false, selecionados: _selecionados));
   }
 
   @override
@@ -97,12 +112,20 @@ class _SelectedItemsScreenState extends State<SelectedItemsScreen> {
                       onPressed: _voltarComSelecao,
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.red,
-                        side: const BorderSide(color: AppColors.red, width: 1.5),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        side: const BorderSide(
+                          color: AppColors.red,
+                          width: 1.5,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
                       child: const Text(
                         'Adicionar mais',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
@@ -112,18 +135,27 @@ class _SelectedItemsScreenState extends State<SelectedItemsScreen> {
                   child: SizedBox(
                     height: 52,
                     child: ElevatedButton.icon(
-                      onPressed: _selecionados.isEmpty ? null : _editar,
+                      onPressed: _selecionados.isEmpty || _preparando
+                          ? null
+                          : _editar,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.red,
                         foregroundColor: Colors.white,
-                        disabledBackgroundColor: AppColors.red.withValues(alpha: 0.5),
+                        disabledBackgroundColor: AppColors.red.withValues(
+                          alpha: 0.5,
+                        ),
                         elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
                       icon: const Icon(Icons.edit_outlined, size: 19),
                       label: const Text(
                         'Alterar preços',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
@@ -178,12 +210,19 @@ class _SelectedItemsScreenState extends State<SelectedItemsScreen> {
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.cyan,
                       side: const BorderSide(color: AppColors.cyan),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(1)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(1),
+                      ),
                       minimumSize: const Size(0, 40),
                     ),
                     child: Text(
-                      _todosSelecionados ? 'Deselecionar todos' : 'Selecionar todos',
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                      _todosSelecionados
+                          ? 'Deselecionar todos'
+                          : 'Selecionar todos',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                   const Spacer(),
@@ -195,7 +234,9 @@ class _SelectedItemsScreenState extends State<SelectedItemsScreen> {
                     elevation: 2,
                     child: InkWell(
                       customBorder: const CircleBorder(),
-                      onTap: _selecionados.isEmpty ? null : _editar,
+                      onTap: _selecionados.isEmpty || _preparando
+                          ? null
+                          : _editar,
                       child: const SizedBox(
                         width: 50,
                         height: 50,
@@ -211,7 +252,8 @@ class _SelectedItemsScreenState extends State<SelectedItemsScreen> {
                 color: Colors.white,
                 child: ListView.separated(
                   itemCount: widget.itens.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1, color: AppColors.divider),
+                  separatorBuilder: (_, _) =>
+                      const Divider(height: 1, color: AppColors.divider),
                   itemBuilder: (context, index) {
                     final produto = widget.itens[index];
                     final marcado = _selecionados.contains(produto.id);
@@ -226,7 +268,10 @@ class _SelectedItemsScreenState extends State<SelectedItemsScreen> {
                         });
                       },
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
                         child: Row(
                           children: [
                             IgnorePointer(
@@ -235,8 +280,12 @@ class _SelectedItemsScreenState extends State<SelectedItemsScreen> {
                                 onChanged: (_) {},
                                 activeColor: AppColors.cyan,
                                 checkColor: Colors.white,
-                                side: const BorderSide(color: AppColors.cyan, width: 2),
-                                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                side: const BorderSide(
+                                  color: AppColors.cyan,
+                                  width: 2,
+                                ),
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
                                 visualDensity: VisualDensity.compact,
                               ),
                             ),
@@ -255,7 +304,10 @@ class _SelectedItemsScreenState extends State<SelectedItemsScreen> {
                             const SizedBox(width: 8),
                             Text(
                               produto.codigoSap,
-                              style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+                              style: const TextStyle(
+                                color: AppColors.textMuted,
+                                fontSize: 13,
+                              ),
                             ),
                           ],
                         ),

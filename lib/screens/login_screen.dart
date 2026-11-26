@@ -20,6 +20,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _carregando = false;
   bool _senhaVisivel = false;
   bool _salvarCredenciais = true;
+  bool _saidaDialogAberta = false;
   String? _erro;
 
   @override
@@ -70,46 +71,82 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  Future<void> _confirmarSaida() async {
+    if (_saidaDialogAberta) return;
+    _saidaDialogAberta = true;
+    final sair = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sair do aplicativo?'),
+        content: const Text('Deseja realmente fechar o Alterar Preço?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('CANCELAR'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(
+              'SIM',
+              style: TextStyle(
+                color: AppColors.red,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    _saidaDialogAberta = false;
+    if (sair == true) await SystemNavigator.pop();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Stack(
-        children: [
-          Container(
-            height: 290,
-            width: double.infinity,
-            color: AppColors.red,
-            child: SafeArea(
-              bottom: false,
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Text(
-                    'Bem Vindo ao sistema de\nRetaguarda de Loja',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 29,
-                      height: 1.2,
-                      fontWeight: FontWeight.bold,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _confirmarSaida();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        body: Stack(
+          children: [
+            Container(
+              height: 290,
+              width: double.infinity,
+              color: AppColors.red,
+              child: SafeArea(
+                bottom: false,
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Text(
+                      'Bem Vindo ao sistema de\nRetaguarda de Loja',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 29,
+                        height: 1.2,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-          SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 230, 24, 32),
-            child: Column(
-              children: [
-                _logoCard(),
-                const SizedBox(height: 18),
-                _formCard(),
-              ],
+            SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 230, 24, 32),
+              child: Column(
+                children: [
+                  _logoCard(),
+                  const SizedBox(height: 18),
+                  _formCard(),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -180,7 +217,8 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               Checkbox(
                 value: _salvarCredenciais,
-                onChanged: (valor) => setState(() => _salvarCredenciais = valor ?? false),
+                onChanged: (valor) =>
+                    setState(() => _salvarCredenciais = valor ?? false),
                 activeColor: AppColors.red,
                 visualDensity: VisualDensity.compact,
               ),
@@ -199,7 +237,9 @@ class _LoginScreenState extends State<LoginScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.red,
                 disabledBackgroundColor: AppColors.red.withValues(alpha: 0.6),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(1)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(1),
+                ),
                 elevation: 0,
               ),
               child: _carregando
@@ -264,7 +304,9 @@ class _UnderlineField extends StatelessWidget {
         hintText: hint,
         hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 16),
         enabledBorder: UnderlineInputBorder(
-          borderSide: BorderSide(color: AppColors.textMuted.withValues(alpha: 0.7)),
+          borderSide: BorderSide(
+            color: AppColors.textMuted.withValues(alpha: 0.7),
+          ),
         ),
         focusedBorder: const UnderlineInputBorder(
           borderSide: BorderSide(color: AppColors.red),

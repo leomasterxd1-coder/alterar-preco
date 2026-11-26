@@ -22,9 +22,9 @@ class _PriceListScreenState extends State<PriceListScreen> {
 
   final _buscaController = TextEditingController();
   final _selecionados = <String>{};
+  final Map<String, Produto> _carrinho = {};
   List<Produto> _produtos = [];
   bool _carregando = true;
-  bool _preparando = false;
   bool _buscandoServidor = false;
   bool _saidaDialogAberta = false;
   String? _erro;
@@ -104,7 +104,8 @@ class _PriceListScreenState extends State<PriceListScreen> {
     final busca = _buscaController.text.trim().toLowerCase();
     final digitos = busca.replaceAll(RegExp(r'[^0-9]'), '');
     return _produtos.where((p) {
-      final casaBusca = busca.isEmpty ||
+      final casaBusca =
+          busca.isEmpty ||
           p.descricao.toLowerCase().contains(busca) ||
           p.codigoSap.toLowerCase().contains(busca) ||
           p.eans.any((ean) {
@@ -155,7 +156,7 @@ class _PriceListScreenState extends State<PriceListScreen> {
     await _buscarNoServidor(_buscaController.text);
   }
 
-  Future<void> _confirmarSelecao() async {
+  void _confirmarSelecao() {
     final selecionados = _selecionadosVisiveis;
     if (selecionados.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -163,50 +164,67 @@ class _PriceListScreenState extends State<PriceListScreen> {
       );
       return;
     }
-    if (_preparando) return;
     setState(() {
-      _preparando = true;
-      _erro = null;
-    });
-    try {
-      await HydraApi.instance.prepararEdicao(
-        selecionados.map((p) => p.id).toList(),
-      );
-      if (!mounted) return;
-      final resultado = await Navigator.of(context).push<SelectedItemsResult>(
-        MaterialPageRoute(builder: (_) => SelectedItemsScreen(itens: selecionados)),
-      );
-      if (resultado != null && mounted) {
-        setState(() {
-          _selecionados
-            ..clear()
-            ..addAll(resultado.selecionados);
-        });
-        if (resultado.salvou) {
-          await _carregar();
-          if (!mounted) return;
-          final quantidade = selecionados.length;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              backgroundColor: AppColors.cyan,
-              content: Text(
-                quantidade == 1
-                    ? '1 item alterado com sucesso.'
-                    : '$quantidade itens alterados com sucesso.',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          );
-        }
+      for (final p in selecionados) {
+        _carrinho[p.id] = p;
       }
-    } catch (e) {
+      _selecionados.clear();
+      _buscaController.clear();
+      _departamento = '';
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: AppColors.cyan,
+        content: Text(
+          selecionados.length == 1
+              ? 'Item adicionado à lista.'
+              : '${selecionados.length} itens adicionados à lista.',
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        action: SnackBarAction(
+          label: 'VER LISTA',
+          textColor: Colors.white,
+          onPressed: () => _abrirCarrinho(),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _abrirCarrinho() async {
+    if (_carrinho.isEmpty) return;
+    final resultado = await Navigator.of(context).push<SelectedItemsResult>(
+      MaterialPageRoute(
+        builder: (_) => SelectedItemsScreen(itens: _carrinho.values.toList()),
+      ),
+    );
+    if (resultado == null || !mounted) return;
+    if (resultado.salvou) {
+      setState(() {
+        for (final id in resultado.selecionados) {
+          _carrinho.remove(id);
+        }
+        _selecionados.clear();
+      });
+      await _carregar();
       if (!mounted) return;
-      setState(() => _erro = e.toString());
-    } finally {
-      if (mounted) setState(() => _preparando = false);
+      final quantidade = resultado.selecionados.length;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.cyan,
+          content: Text(
+            quantidade == 1
+                ? '1 item alterado com sucesso.'
+                : '$quantidade itens alterados com sucesso.',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      );
     }
   }
 
@@ -227,7 +245,10 @@ class _PriceListScreenState extends State<PriceListScreen> {
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text(
               'SAIR',
-              style: TextStyle(color: AppColors.red, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: AppColors.red,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
@@ -252,13 +273,54 @@ class _PriceListScreenState extends State<PriceListScreen> {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(15, 20, 15, 0),
-                child: const Text(
-                  'Administrar Preços da Loja 291',
-                  style: TextStyle(
-                    color: AppColors.red,
-                    fontSize: 25,
-                    fontWeight: FontWeight.w500,
-                  ),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Administrar Preços da Loja 291',
+                        style: TextStyle(
+                          color: AppColors.red,
+                          fontSize: 25,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    if (_carrinho.isNotEmpty)
+                      InkWell(
+                        onTap: _abrirCarrinho,
+                        borderRadius: BorderRadius.circular(22),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 11,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            border: Border.all(color: _borda),
+                            borderRadius: BorderRadius.circular(22),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.list_alt,
+                                color: AppColors.cyan,
+                                size: 21,
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                '${_carrinho.length}',
+                                style: const TextStyle(
+                                  color: AppColors.cyan,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
               Padding(
@@ -299,16 +361,24 @@ class _PriceListScreenState extends State<PriceListScreen> {
                         const SizedBox(height: 4),
                         Text(
                           _erro!,
-                          style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textMuted,
+                          ),
                         ),
-                        TextButton(onPressed: _carregar, child: const Text('Tentar novamente')),
+                        TextButton(
+                          onPressed: _carregar,
+                          child: const Text('Tentar novamente'),
+                        ),
                       ],
                     ),
                   ),
                 )
               else if (_carregando)
                 Expanded(
-                  child: Center(child: CircularProgressIndicator(color: AppColors.red)),
+                  child: Center(
+                    child: CircularProgressIndicator(color: AppColors.red),
+                  ),
                 )
               else
                 Expanded(child: _listaProdutos()),
@@ -343,7 +413,10 @@ class _PriceListScreenState extends State<PriceListScreen> {
               style: const TextStyle(fontSize: 16, color: AppColors.textDark),
               decoration: InputDecoration(
                 hintText: 'Digite o EAN (até 13 dígitos)',
-                hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 14),
+                hintStyle: const TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 14,
+                ),
                 counterText: '',
                 border: InputBorder.none,
                 isDense: true,
@@ -353,7 +426,11 @@ class _PriceListScreenState extends State<PriceListScreen> {
                           _buscaController.clear();
                           setState(() {});
                         },
-                        icon: const Icon(Icons.close, size: 19, color: AppColors.textMuted),
+                        icon: const Icon(
+                          Icons.close,
+                          size: 19,
+                          color: AppColors.textMuted,
+                        ),
                       )
                     : null,
               ),
@@ -361,7 +438,11 @@ class _PriceListScreenState extends State<PriceListScreen> {
           ),
           IconButton(
             onPressed: () => _buscarNoServidor(_buscaController.text),
-            icon: const Icon(Icons.search, color: AppColors.textMuted, size: 27),
+            icon: const Icon(
+              Icons.search,
+              color: AppColors.textMuted,
+              size: 27,
+            ),
           ),
         ],
       ),
@@ -374,7 +455,11 @@ class _PriceListScreenState extends State<PriceListScreen> {
       height: 57,
       child: IconButton(
         onPressed: _abrirScanner,
-        icon: const Icon(Icons.qr_code_scanner, color: AppColors.cyan, size: 31),
+        icon: const Icon(
+          Icons.qr_code_scanner,
+          color: AppColors.cyan,
+          size: 31,
+        ),
       ),
     );
   }
@@ -399,7 +484,11 @@ class _PriceListScreenState extends State<PriceListScreen> {
         child: DropdownButton<String>(
           value: _departamento,
           isExpanded: true,
-          icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.cyan, size: 28),
+          icon: const Icon(
+            Icons.keyboard_arrow_down,
+            color: AppColors.cyan,
+            size: 28,
+          ),
           items: [
             const DropdownMenuItem<String>(
               value: '',
@@ -436,8 +525,8 @@ class _PriceListScreenState extends State<PriceListScreen> {
             value: _todosSelecionados
                 ? true
                 : _algumSelecionado
-                    ? null
-                    : false,
+                ? null
+                : false,
             tristate: true,
             activeColor: AppColors.cyan,
             checkColor: Colors.white,
@@ -476,9 +565,7 @@ class _PriceListScreenState extends State<PriceListScreen> {
     return SizedBox(
       height: 53,
       child: ElevatedButton(
-        onPressed: (_selecionadosVisiveis.isEmpty || _preparando)
-            ? null
-            : _confirmarSelecao,
+        onPressed: _selecionadosVisiveis.isEmpty ? null : _confirmarSelecao,
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.cyan,
           disabledBackgroundColor: AppColors.cyan.withValues(alpha: 0.5),
@@ -487,23 +574,17 @@ class _PriceListScreenState extends State<PriceListScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 20),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
         ),
-        child: _preparando
-            ? const SizedBox(
-                height: 22,
-                width: 22,
-                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-              )
-            : const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Confirmar Seleção',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
-                  SizedBox(width: 12),
-                  Icon(Icons.arrow_forward, size: 23),
-                ],
-              ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Confirmar Seleção',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+            SizedBox(width: 12),
+            Icon(Icons.arrow_forward, size: 23),
+          ],
+        ),
       ),
     );
   }
